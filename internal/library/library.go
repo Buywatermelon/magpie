@@ -66,6 +66,10 @@ type Library struct {
 	// that reads it (usrname1833, skills_shared.go). This computer's
 	// own: Collect doesn't carry it
 	SharedSkills bool `json:"sharedSkills,omitempty"`
+	// dropShared is set for the one sync that turns SharedSkills off, so
+	// sweepShared takes out the links that setting put in ~/.agents/skills.
+	// Not saved: the next sync leaves a link someone put there by hand.
+	dropShared bool `json:"-"`
 	// AutoUpdateSkills fetches again by itself each skill its GitHub or
 	// git repository has changed (0xYaCo on X, skill_autoupdate.go). This
 	// computer's own: Collect doesn't carry it

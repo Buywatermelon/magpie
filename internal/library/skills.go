@@ -937,11 +937,11 @@ func (l *Library) syncSkills(t *Target, res *Result, all []*Target) {
 	a.Skills = mine
 }
 
-// sweepShared takes magpie's own entries out of ~/.agents/skills once no
-// agent whose folder it is, or that still reads it for the skill, has it
-// any more: an entry put there for an agent that reads its own folder now
-// (Kimi Code, #4379) would go on reaching every reader of the folder,
-// whatever the library ticks.
+// sweepShared takes magpie's own entries out of ~/.agents/skills when no
+// agent whose folder it is still has them and the shared setting is off.
+// A symlink that already points at the library stays when another reader
+// of the folder is ticked for that skill (sharedLinkStays). A link left
+// for Kimi Code alone still goes (#4379).
 func (l *Library) sweepShared(all []*Target, res *Result) {
 	es, err := os.ReadDir(sharedSkillsDir())
 	if err != nil {
@@ -967,12 +967,47 @@ func (l *Library) sweepShared(all []*Target, res *Result) {
 		if l.keepsShared(s) || slices.ContainsFunc(holders, func(o *Target) bool { return s.gives(o.Agent.ID) }) {
 			continue
 		}
+		// a symlink already pointing at the library, for a skill some
+		// other reader of this folder is ticked for, is that reader's
+		// library copy: leave it, and leave the link in the reader's own
+		// folder. turning the setting off still clears the links it put
+		// here (dropShared). a link left for Kimi Code alone is not such
+		// a copy (#4379, leftTheSharedFolder).
+		if !l.dropShared && linked(p) && l.sharedLinkStays(s, all) {
+			continue
+		}
 		if err := unlink(p); err != nil {
 			res.fail("agents", "skill:"+name, err)
 			continue
 		}
 		dropOld(p, name)
 	}
+}
+
+// sharedLinkStays reports whether an existing symlink in ~/.agents/skills
+// that points at library skill s should survive a sync while the shared
+// setting is off. It should when some agent that reads the folder, and is
+// given s, keeps its own skills somewhere else.
+func (l *Library) sharedLinkStays(s *Skill, all []*Target) bool {
+	if s == nil || s.OffHere {
+		return false
+	}
+	shared := realDir(sharedSkillsDir())
+	for _, o := range all {
+		if o.Skills == "" || realDir(o.Skills) == shared || leftTheSharedFolder(o) {
+			continue
+		}
+		if o.readsSharedDir() && s.gives(o.Agent.ID) {
+			return true
+		}
+	}
+	return false
+}
+
+// leftTheSharedFolder is an agent whose skills magpie used to put in
+// ~/.agents/skills and now puts in the agent's own folder (#4379).
+func leftTheSharedFolder(o *Target) bool {
+	return o != nil && o.Agent.ID == "kimi" && realDir(o.Skills) != realDir(sharedSkillsDir())
 }
 
 // ---- finding skills to install --------------------------------------------

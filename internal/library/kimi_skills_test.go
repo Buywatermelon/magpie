@@ -146,3 +146,39 @@ func TestKimiSweepLeavesTheUsersOwnSharedSkills(t *testing.T) {
 		}
 	}
 }
+
+// A symlink someone put in ~/.agents/skills, pointing at the library, is
+// the library's copy for every reader of that folder. A sync leaves it,
+// and leaves the link in each ticked agent's own folder, including one
+// that reads the shared folder (Pi from 0.54). The shared setting stays off.
+func TestSharedLibraryLinkStaysForReaders(t *testing.T) {
+	h := sandbox(t)
+	os.RemoveAll(filepath.Join(h, ".config/goose"))
+	os.Remove(filepath.Join(h, "bin/goose"))
+	os.Remove(filepath.Join(h, "bin/goose.exe"))
+	setPiVersion(t, "1.5.0")
+	src := filepath.Join(h, "src/skills")
+	skill(t, filepath.Join(src, "ponytail"), "ponytail", "Be lazy")
+	ok(t)(InstallSkills(src, []string{"ponytail"}, []string{"codex", "pi", "copilot"}))
+	shared := filepath.Join(h, ".agents/skills/ponytail")
+	if err := os.MkdirAll(filepath.Dir(shared), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(skillDir("ponytail"), shared); err != nil {
+		t.Fatal(err)
+	}
+	was, err := os.Lstat(shared)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ok(t)(Sync())
+	now, err := os.Lstat(shared)
+	if err != nil || !os.SameFile(was, now) || !ours(shared, "ponytail") {
+		t.Fatalf("sync took the library symlink out of ~/.agents/skills: %v", err)
+	}
+	for _, d := range []string{".codex/skills/ponytail", ".pi/agent/skills/ponytail", ".copilot/skills/ponytail"} {
+		if !ours(filepath.Join(h, d), "ponytail") {
+			t.Errorf("%s lost its link to the library", d)
+		}
+	}
+}

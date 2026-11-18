@@ -36,6 +36,7 @@ func SetSkillsWhere(where string) (*Result, error) {
 		return nil, fmt.Errorf("skills go in %s or %s, not %q", SkillsInAgents, SkillsInShared, where)
 	}
 	return change(func(l *Library) error {
+		l.dropShared = l.SharedSkills && where == SkillsInAgents
 		l.SharedSkills = where == SkillsInShared
 		return nil
 	})
