@@ -943,13 +943,21 @@ func serverAbout(s *Server) string {
 	return ""
 }
 
-// skillIcon is its repository owner's avatar, for a skill from GitHub.
+// skillIcon is the owner's avatar. A git remote is included when remoteRepo
+// reads it as a GitHub owner/repo. Another host stays blank: remoteRepo keeps
+// that host, and a host contains a dot.
 func skillIcon(s *Skill) string {
-	if s.Source == nil || s.Source.Kind != "github" {
+	if s.Source == nil {
 		return ""
 	}
-	owner, _, ok := strings.Cut(s.Source.Repo, "/")
-	if !ok || owner == "" {
+	repo := s.Source.Repo
+	if s.Source.Kind == "git" {
+		repo = remoteRepo(repo)
+	} else if s.Source.Kind != "github" {
+		return ""
+	}
+	owner, _, ok := strings.Cut(repo, "/")
+	if !ok || owner == "" || (s.Source.Kind == "git" && strings.Contains(owner, ".")) {
 		return ""
 	}
 	return gh(owner)
